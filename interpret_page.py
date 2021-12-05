@@ -150,8 +150,10 @@ def show_interpret_page():
     metric_container = st.container()
     col1, col2, col3 = metric_container.columns(3)
     col1.metric("Accuracy", "96.3%", "12")
-    col2.metric("Percision", "8.2", "-8%")
+    col2.metric("Percision", calc_percision())
     col3.metric("Error Rate", "$4,218", "7")
+    st.title("Interpret Prediction Model")
+    st.write("This model ")
 
     graph_container = st.container()
     #heatmap 
@@ -167,8 +169,18 @@ def show_interpret_page():
 
 
     graph_container.write(""" #### Avg. Popularity on Genre """)
-    data = df.groupby(["top_genre"])["popularity"].mean().sort_values(ascending=True)
-    graph_container.area_chart(data)
+    data = df.groupby(["top_genre"])["budget"].mean().sort_values(ascending=True)
+    data1 = df.groupby(["top_genre"])["revenue"].mean().sort_values(ascending=True)
+    data2 = df.groupby(["top_genre"])["popularity"].mean().sort_values(ascending=True)
+    data3 = df.groupby(["release_month"])["revenue"].mean().sort_values(ascending=True)
+    data4 = df.groupby(["release_day"])["revenue"].mean().sort_values(ascending=True)
+    data5 = df.groupby(["runtime"])["revenue"].mean().sort_values(ascending=True)
+    graph_container.bar_chart(data)
+    graph_container.bar_chart(data1)
+    graph_container.bar_chart(data2)
+    graph_container.bar_chart(data3)
+    graph_container.area_chart(data4)
+    graph_container.area_chart(data5)
 
     #dataframe
     st.dataframe(data = df)

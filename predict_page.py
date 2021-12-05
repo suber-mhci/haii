@@ -3,6 +3,7 @@ import pickle
 import numpy as np 
 import pandas as pd
 
+
 def loads_model():
     with open('saved_steps.pkl', 'rb') as file:
         data = pickle.load(file)
@@ -17,6 +18,9 @@ le_top_production_country = data["le_top_production_country"]
 le_original_language = data["le_original_language"]
 le_release_month = data["le_release_month"]
 
+def calc_error():
+    p = precision_score(X, regressor.predict(X), average='macro')
+    return p[0]
 
 def show_predict_page(): 
     #create different widgets 
@@ -172,12 +176,15 @@ def show_predict_page():
     
     metric_container.write("Enter information to get insights into your film's future:")
 
+    pandemic_movies = metric_container.checkbox("Include only movies released during the pandemic in prediction model")
     col1, col2 = metric_container.columns(2)
 
     test = pd.DataFrame({
         'Profit': [0, 50000000], 
         'Budget': [20000000, 0]
     })
+
+   
 
     graph = st.bar_chart(test)
     
