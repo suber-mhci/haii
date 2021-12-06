@@ -198,7 +198,7 @@ def show_interpret_page():
     acc = random_forest_reg.score(X_test,y_test) * 100
 
     st.title("Interpret Prediction Model")
-    st.sidebar.write("This application utilizes a Random Tree Regression Model.")
+    st.sidebar.write("This application utilizes a Random Tree Regression Model. The dataset used contains: 3546 movie items.")
 
     metrics = st.container()
 
