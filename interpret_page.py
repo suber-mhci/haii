@@ -1,8 +1,13 @@
+#imports 
 import streamlit as st
 import pandas as pd
+import numpy as np 
 import matplotlib.pyplot as plt
+from predict_page import loads_model
+#training dataset 
+from sklearn.model_selection import train_test_split
 
-#convert dict to list 
+#convert dict of genres to list 
 import re
 import json
 def dict_lists(dataFrame,src_column):
@@ -20,13 +25,14 @@ def dict_lists(dataFrame,src_column):
             new_vals.append(np.nan)
     return new_vals
 
+#make the list of genres into seperate columns 
 def list_category(category):
     for i in range(0, 4803):
         for j in range(0, 7):
             if category.iloc[i][j] != None:
                 category.iloc[i][j] = category.iloc[i][j].get('name')   
 
-
+#change the numbers into name of the month 
 def clean_month(x):
     if "12" in x:
         return "December"
@@ -123,6 +129,7 @@ def load_data():
 
     df_sample['release_day'] = df['release_date'].str[8:]
     df_sample['release_month'] = df['release_date'].str[5:7]
+    df_sample['release_year'] = df['release_date'].str[0:4]
 
     df_sample = df_sample.dropna()
     df_sample.isnull().sum()
@@ -138,50 +145,105 @@ def load_data():
     df_sample["original_language"] = df_sample['original_language'].map(language_map)
     df_sample['original_language'].value_counts()
 
-    #X = features and y = what we want to predict
-    df_sample= df_sample.drop(['original_language', 'top_production_country', 'top_production_company'], axis=1) #noram
+    production_company_map = shorten_categories(df_sample['top_production_company'].value_counts(), 10)
+    df_sample['top_production_company'] = df_sample['top_production_company'].map(production_company_map)
+    df_sample['top_production_company'].value_counts()
+
+    df_sample['genre'] = df_sample['top_genre']
+
+    #some of the data is a number, but some is a string. 
+    #So, I need to transform the string values into numbers 
+    #that the model can understand
+    from sklearn.preprocessing import LabelEncoder
+    le_top_genre = LabelEncoder()
+    df_sample['top_genre'] = le_top_genre.fit_transform(df_sample['top_genre'])
+    le_top_production_company = LabelEncoder()
+    df_sample['top_production_company'] = le_top_production_company.fit_transform(df_sample['top_production_company'])
+    le_top_production_country = LabelEncoder()
+    df_sample['top_production_country'] = le_top_production_country.fit_transform(df_sample['top_production_country'])                                                                             
+    le_original_language = LabelEncoder()
+    df_sample['original_language'] = le_original_language.fit_transform(df_sample['original_language'])                                                                             
+    le_release_month = LabelEncoder()
+    df_sample['release_month'] = le_release_month.fit_transform(df_sample['release_month'])  
 
     df_sample['profit'] = df_sample["revenue"] - df_sample["budget"]
     return df_sample
 
+#set the loaded data 
 df = load_data()
 
+#display the interpretation page 
 def show_interpret_page():
-    metric_container = st.container()
-    col1, col2, col3 = metric_container.columns(3)
-    col1.metric("Accuracy", "96.3%", "12")
-    col2.metric("Percision", calc_percision())
-    col3.metric("Error Rate", "$4,218", "7")
+
+    #X = features and y = what we want to predict
+    X = df.drop(['revenue', 'release_year', 'original_language', 'top_production_country', 'genre'], axis=1) #noram
+    y = df['revenue']
+
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2)
+    #DecisionTreeRegressor 
+    #combines multiple decision trees into a forest
+    from sklearn.ensemble import RandomForestRegressor
+    random_forest_reg = RandomForestRegressor(random_state=0)
+    random_forest_reg.fit(X_train, y_train)
+
+    y_pred = random_forest_reg.predict(X_test)
+
+    #the error is a bit better here 
+    from sklearn.metrics import mean_squared_error, mean_absolute_error
+    import numpy as np
+    error = np.sqrt(mean_squared_error(y_test, y_pred))
+    #print("${:,.02f}".format(error))
+
+    #calculate accuracy 
+    acc = random_forest_reg.score(X_test,y_test) * 100
+
     st.title("Interpret Prediction Model")
-    st.write("This model ")
+    st.sidebar.write("This application utilizes a Random Tree Regression Model.")
+
+    metrics = st.container()
+
+    col1, col2 = metrics.columns(2)
+
+    col1.metric(label="Accuracy", value = acc)
+    col2.metric(label="Potenial Error", value = error)
 
     graph_container = st.container()
-    #heatmap 
-    #bar graph 
-    #graph_container.write(""" #### Avg. Profit Based on Genre """)
-    #data = df.groupby(["top_genre"])["profit"].mean().sort_values(ascending=True)
-    #graph_container.area_chart(data)
 
     txt = st.sidebar.text_area('Text to analyze', height=400)
 
-    st.sidebar.download_button('Download interpretation notes', txt)
-    
+    #download button to download interpretation notes 
+    st.sidebar.download_button(label = 'Download interpretation notes', data =txt, file_name='boxOffice_notes.txt')
 
+    graph = graph_container.selectbox("Choose your visualization:", ("Genre/Budget", "Genre/Profit", 
+    "Genre/Popularity", "Release Month/Revenue", "Release Day/Revenue", "Runtime/Revenue", "DataFrame"))
 
-    graph_container.write(""" #### Avg. Popularity on Genre """)
-    data = df.groupby(["top_genre"])["budget"].mean().sort_values(ascending=True)
-    data1 = df.groupby(["top_genre"])["revenue"].mean().sort_values(ascending=True)
-    data2 = df.groupby(["top_genre"])["popularity"].mean().sort_values(ascending=True)
-    data3 = df.groupby(["release_month"])["revenue"].mean().sort_values(ascending=True)
-    data4 = df.groupby(["release_day"])["revenue"].mean().sort_values(ascending=True)
-    data5 = df.groupby(["runtime"])["revenue"].mean().sort_values(ascending=True)
-    graph_container.bar_chart(data)
-    graph_container.bar_chart(data1)
-    graph_container.bar_chart(data2)
-    graph_container.bar_chart(data3)
-    graph_container.area_chart(data4)
-    graph_container.area_chart(data5)
-
-    #dataframe
-    st.dataframe(data = df)
-    #could maybe change the model that they use
+    if graph == "Genre/Budget":
+        graph_container.write(""" #### Avg. Popularity on Genre """)
+        data = df.groupby(["genre"])["budget"].mean().sort_values(ascending=True)
+        graph_container.bar_chart(data)
+        graph_container.write('When make decisions on your next movie, it is important to consider the current popularity. Based on the visualization below, the most popular genres are Animation and Adventure.')
+    if graph == "Genre/Profit":
+        graph_container.write(""" #### Avg. Profit Based on Genre """)
+        data1 = df.groupby(["genre"])["profit"].mean().sort_values(ascending=True)
+        graph_container.area_chart(data1)
+    if graph == "Genre/Popularity":
+        graph_container.write(""" #### Avg. Popularity on Genre """)
+        data2 = df.groupby(["genre"])["popularity"].mean().sort_values(ascending=True)
+        graph_container.bar_chart(data2)
+    if graph == "Release Month/Revenue":
+        graph_container.write(""" #### Avg. Popularity on Genre """)
+        data3 = df.groupby(["release_month"])["revenue"].mean().sort_values(ascending=True)
+        graph_container.bar_chart(data3)
+    if graph == "Release Day/Revenue":
+        graph_container.write(""" #### Avg. Popularity on Genre """)
+        data4 = df.groupby(["release_day"])["revenue"].mean().sort_values(ascending=True)
+        graph_container.area_chart(data4)
+    if graph == "Runtime/Revenue":
+        graph_container.write(""" #### Avg. Popularity on Genre """)
+        data5 = df.groupby(["runtime"])["revenue"].mean().sort_values(ascending=True)
+        graph_container.area_chart(data5)
+    if graph == "DataFrame":
+        #dataframe
+        st.dataframe(data = df)
+        
+    #could maybe change the model that they use with checkbox

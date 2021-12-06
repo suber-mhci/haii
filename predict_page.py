@@ -1,16 +1,18 @@
+#imports 
 import streamlit as st
 import pickle 
 import numpy as np 
 import pandas as pd
 
-
+#load model from Jupyter Notebook 
 def loads_model():
     with open('saved_steps.pkl', 'rb') as file:
         data = pickle.load(file)
     return data
-
+#set model 
 data = loads_model()
 
+#set Decision Tree Regression model and label encoders 
 regressor = data["model"]
 le_top_genre = data["le_top_genre"]
 le_top_production_company = data["le_top_production_company"]
@@ -18,10 +20,7 @@ le_top_production_country = data["le_top_production_country"]
 le_original_language = data["le_original_language"]
 le_release_month = data["le_release_month"]
 
-def calc_error():
-    p = precision_score(X, regressor.predict(X), average='macro')
-    return p[0]
-
+#show the prediction page 
 def show_predict_page(): 
     #create different widgets 
     st.title("Box Office Gross Revenue Prediction")
@@ -29,7 +28,7 @@ def show_predict_page():
 
     #add select options for the features 
 
-    #genres
+    #genres categories 
     genres = {
         "Drama",
         "Comedy",
@@ -51,7 +50,7 @@ def show_predict_page():
         "War"
     }
 
-    #production companies
+    #production companies categories - too many options so NOT included at this time
     production_companies = {
         "Paramount Pictures", 
         "Universal Pictures"
@@ -114,7 +113,7 @@ def show_predict_page():
         "Other",
     }
 
-    #production countries
+    #production countries categories - not very releavant to movie characterization so NOT included at this time
     production_countries = {
         "United States of America", 
         "United Kingdom",
@@ -141,7 +140,7 @@ def show_predict_page():
         "Other",
     }
 
-    #original Langugae
+    #original Langugae categories - not relevant to movie characterization so NOT included at this time
     languages = {
         "English", 
         "French", 
@@ -171,69 +170,67 @@ def show_predict_page():
         "November", 
         "December"
     }
-
-    metric_container = st.container()
     
+    #set container for webpage 
+    metric_container = st.container()
     metric_container.write("Enter information to get insights into your film's future:")
 
+    #checkbox to filter for only movies release during 2020 and 2021
     pandemic_movies = metric_container.checkbox("Include only movies released during the pandemic in prediction model")
-    col1, col2 = metric_container.columns(2)
 
+    #show the budget (inputed by the user) and the predicted revenue 
+    col1, col2 = metric_container.columns(2)
     test = pd.DataFrame({
         'Profit': [0, 50000000], 
         'Budget': [20000000, 0]
     })
 
-   
-
+    #show the budget and predicted revenue bar chart 
     graph = st.bar_chart(test)
     
-    budget = st.sidebar.text_input('Budget', 'What is the budget?')
-    genre = st.sidebar.multiselect("Genre", genres)
+    #sidebar features 
+    budget = st.sidebar.text_input('Budget', 'What is the budget (no commas)?')
+    genre = st.sidebar.multiselect("Genre (choose only one)", genres)
     release_month = st.sidebar.selectbox("Release Month", months)
     release_day = st.sidebar.number_input("Release Day", min_value=1, max_value=31, value=5, step=1)
-
     popularity = st.sidebar.slider("Popularity", 0.0, 10.0, 3.0)
     runtime = st.sidebar.slider("Runtime", 0, 200, 50)
-    #production_company= st.selectbox("Production Company", production_companies)
+    #not included at this time
+    production_company= st.multiselect("Production Company (choose only one):", production_companies)
     #production_country = st.selectbox("Country of Production", production_countries)
     #original_language = st.selectbox("Film Original Language", languages)
-
     
-    
-
     #button for the prediction 
     ok = st.button("Predict Revenue")
+
+    #trigger to make the prediction when button is pressed 
     if ok: 
         #start the prediction 
-        X = X = np.array([[budget, genre[0], popularity, runtime, release_day, release_month]])
+        X = np.array([[budget ,genre[0], production_company[0], popularity, runtime, release_day, release_month]])
         X[:, 1] = le_top_genre.transform(X[:, 1])
-        #X[:, 2] = le_top_production_company.transform(X[:,2])
+        X[:, 2] = le_top_production_company.transform(X[:,2])
         #X[:, 3] = le_top_production_country.transform(X[:, 3])
         #X[:, 4] = le_original_language.transform(X[:,4])
-        X[:, 5] = le_release_month.transform(X[:, 5])
-        
+        X[:, 6] = le_release_month.transform(X[:, 6])
 
+        #make prediction 
         y_pred = regressor.predict(X)
 
+        #calculate overall profit of the film 
         profit = y_pred[0] - int(budget)
 
+        #change format of budget, revenue, and profit to include commas 
         bud = "{:,}".format(int(budget))
         rev = "{:,}".format(int(f"{y_pred[0]:.0f}"))
         prof = "{:,}".format(int(f"{profit:.0f}"))
 
+        #display budget and revenue metrics 
         col1.metric(label="Budget", value="$" + str(bud))
-    
         col2.metric(label="Predicted Gross Revenue", value="$" + str(rev), delta=str(prof))
 
+        #show bar chart for budget and predict revenue 
         test = pd.DataFrame({
         'Revenue': [0, y_pred[0]], 
         'Budget': [int(budget), 0]
         })
-
-        
-
         graph.bar_chart(test)
-
-        #st.subheader(f"The estimated revenue is ${y_pred[0]:.0f}")
-        #st.subheader(f"The estimated revenue is ${profit:.0f}")
